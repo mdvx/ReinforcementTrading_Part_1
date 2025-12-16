@@ -1,6 +1,6 @@
-import gym
+import gymnasium as gym
 import numpy as np
-from gym import spaces
+from gymnasium import spaces
 
 class ForexTradingEnv(gym.Env):
     """
@@ -134,7 +134,7 @@ class ForexTradingEnv(gym.Env):
         # reward in "pips" => multiply by 10,000 to convert from price difference
         reward = pnl * 10000
         return reward
-    
+
     def step(self, action):
         """
         action is an integer in [0..(1 + 2*len(SL)*len(TP))-1],
@@ -144,9 +144,8 @@ class ForexTradingEnv(gym.Env):
         """
         # Decode the action
         direction, sl, tp = self.action_map[action]
-        
+
         if direction is None:
-            # No trade => reward=0
             reward = 0.0
             exit_price = None
             self.last_trade_info = {
@@ -155,47 +154,54 @@ class ForexTradingEnv(gym.Env):
                 "pnl": 0.0
             }
         else:
-            # direction=0 or 1 => short/long
             entry_price = self.df.loc[self.current_step, "Close"]
             reward = self._calculate_reward(direction, sl, tp)
-            
-            # next bar's close if possible
+
             if self.current_step < self.n_steps - 1:
                 exit_price = self.df.loc[self.current_step + 1, "Close"]
             else:
                 exit_price = entry_price
-            
+
             self.last_trade_info = {
                 "entry_price": entry_price,
                 "exit_price": exit_price,
-                "pnl": reward / 10000.0  # convert back to 'pips'
+                "pnl": reward / 10000.0
             }
-            
-            # Update equity
+
             self.equity += reward
-        
-        # Log equity (if no trade => equity stays same)
+
         self.equity_curve.append(self.equity)
-        
-        # Move forward
+
+        # Advance time
         self.current_step += 1
-        if self.current_step >= self.n_steps - 1:
-            self.done = True
-        else:
-            self.done = False
-        
-        # Observe next state
+
+        # Episode end conditions
+        truncated = (self.current_step >= self.n_steps - 1)  # end of dataset / time limit
+        terminated = (self.equity <= 0.0)  # “real” terminal condition (optional)
+
+        self.done = terminated or truncated  # if you still use self.done elsewhere
+
+        # Next observation (if you prefer, you can clamp step before building obs)
         obs = self._get_observation()
-        
-        return obs, reward, self.done, {}
-    
-    def reset(self):
+
+        info = {
+            "equity": self.equity,
+            "last_trade": self.last_trade_info,
+        }
+
+        return obs, float(reward), terminated, truncated, info
+
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)   # important: sets up self.np_random
+
         self.current_step = self.window_size  # start so we have a full window
         self.equity = 10000.0
         self.done = False
         self.equity_curve = []
         self.last_trade_info = None
-        return self._get_observation()
+        info = {"equity": self.equity}
+
+        return self._get_observation(), info
     
     def render(self, mode='human'):
         """Optional: print or plot debug info."""

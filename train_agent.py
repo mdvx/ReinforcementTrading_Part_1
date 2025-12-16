@@ -21,6 +21,7 @@ def main():
     # Define RL model (PPO)
     model = PPO(
         policy="MlpPolicy",
+        seed=42,
         env=vec_env,
         verbose=1,
         tensorboard_log="./tensorboard_log/"
