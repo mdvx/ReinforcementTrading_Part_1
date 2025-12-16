@@ -27,7 +27,7 @@ def main():
     )
     
     # Train the model
-    model.learn(total_timesteps=10100)
+    model.learn(total_timesteps=100_000)
     model.save("model_eurusd")
     print("Model saved successfully!")
     
